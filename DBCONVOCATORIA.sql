@@ -563,3 +563,82 @@ WHERE
     AND RESERVAS.RES_CODIGO = RESERVASDECLIENTES.RES_CODIGO
     AND  RESERVAS.VUE_CODIGO = VUELOS.VUE_CODIGO
     AND VUELOS.DES_CODIGO = DESTINOS.DES_CODIGO;
+    
+    
+--Funciones creadas por gustavo 
+ 
+create or replace FUNCTION  FUN_GETCANTIDADVIAJES ( correo CLIENTES.CLI_EMAIL%TYPE)
+ RETURN NUMBER
+ IS 
+    cantidadDeViajes NUMBER(2):= 0;
+ BEGIN 
+
+    SELECT 
+        COUNT(*) INTO cantidadDeViajes
+    FROM 
+        CLIENTES,
+        RESERVASDECLIENTES,
+        RESERVAS,
+        VUELOS,
+        DESTINOS
+    WHERE 
+        CLIENTES.CLI_EMAIL = correo
+        AND CLIENTES.CLI_CEDULA = RESERVASDECLIENTES.CLI_CEDULA
+        AND RESERVAS.RES_CODIGO = RESERVASDECLIENTES.RES_CODIGO
+        AND  RESERVAS.VUE_CODIGO = VUELOS.VUE_CODIGO
+        AND VUELOS.DES_CODIGO = DESTINOS.DES_CODIGO; 
+    RETURN cantidadDeViajes;
+END;
+
+CREATE OR REPLACE FUNCTION FN_GETEMAIL_BY_CLIENT_ID (client_id CLIENTES.CLI_CEDULA%TYPE)
+RETURN VARCHAR2
+IS
+    user_email VARCHAR2(80);
+Begin
+    Select
+        CLIENTES.CLI_EMAIL INTO user_email
+    From CLIENTES 
+    WHERE CLIENTES.CLI_CEDULA=client_id;
+    return user_email;
+END;
+--procedimientos creados por Gustavo
+CREATE or REPLACE PROCEDURE proc_mail_message(
+   to_mail CLIENTES.CLI_EMAIL%type,
+   subject varchar2) 
+IS
+BEGIN
+        dbms_output.put_line('Enviando mensaje');
+        dbms_output.put_line('Hola' || to_mail || subject || 'Hemos adquirido un nuevo avión para nuestra aerolinea,VEN A DISFRUTAR!!');
+        
+END;
+
+--triggers creados por Gustavo
+
+CREATE OR REPLACE TRIGGER tg_give_promotion after insert on RESERVASDECLIENTES for EACH ROW
+declare
+email VARCHAR2(80);
+numReserves NUMBER(2);
+BEGIN
+    email:= FN_GETEMAIL_BY_CLIENT_ID(:New.RECLI_CODIGO);
+    numReserves:=FUN_GETCANTIDADVIAJES(email);
+    IF numReserves >10 then
+         dbms_output.put_line('El usuario' || :new.RECLI_CODIGO       || 'Ha ganado un 10% de descuento por ser un cliente frecuente');
+    END IF;
+END;
+
+
+create or replace trigger tg_notify_new_airplane after insert on AVIONES  for each row
+declare 
+ CURSOR C_CLIENTES IS SELECT * FROM CLIENTES;
+    row_cliente C_CLIENTES%ROWTYPE;
+BEGIN
+ OPEN C_CLIENTES;
+    FETCH C_CLIENTES INTO row_cliente;
+    WHILE C_CLIENTES%FOUND LOOP
+        proc_mail_message(row_cliente.CLI_EMAIL,:NEW.AVI_MARCA);
+        FETCH C_CLIENTES INTO row_cliente;
+    END LOOP; 
+    CLOSE C_CLIENTES;
+END;
+
+    
