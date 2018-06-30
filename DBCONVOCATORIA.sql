@@ -590,6 +590,19 @@ create or replace FUNCTION  FUN_GETCANTIDADVIAJES ( correo CLIENTES.CLI_EMAIL%TY
     RETURN cantidadDeViajes;
 END;
 
+create or replace function FN_GET_VUELOS (AVI_ID AVIONES.AVI_CODIGO%type)
+RETURN  NUMBER
+IS
+    cantidadDeVuelos NUMBER(2):= 0;
+BEGIN
+  SELECT 
+        COUNT(*) INTO cantidadDeVuelos
+        From VUELOS
+        WHERE VUELOS.AVI_CODIGO=AVI_ID and VUELOS.;
+    
+        return cantidadDeVuelos;
+END;
+
 CREATE OR REPLACE FUNCTION FN_GETEMAIL_BY_CLIENT_ID (client_id CLIENTES.CLI_CEDULA%TYPE)
 RETURN VARCHAR2
 IS
@@ -604,11 +617,11 @@ END;
 --procedimientos creados por Gustavo
 CREATE or REPLACE PROCEDURE proc_mail_message(
    to_mail CLIENTES.CLI_EMAIL%type,
-   subject varchar2) 
+   subject varchar2,message varchar2) 
 IS
 BEGIN
         dbms_output.put_line('Enviando mensaje');
-        dbms_output.put_line('Hola' || to_mail || subject || 'Hemos adquirido un nuevo avión para nuestra aerolinea,VEN A DISFRUTAR!!');
+        dbms_output.put_line('Hola' || to_mail || subject || message);
         
 END;
 
@@ -626,7 +639,6 @@ BEGIN
     END IF;
 END;
 
-
 create or replace trigger tg_notify_new_airplane after insert on AVIONES  for each row
 declare 
  CURSOR C_CLIENTES IS SELECT * FROM CLIENTES;
@@ -635,10 +647,32 @@ BEGIN
  OPEN C_CLIENTES;
     FETCH C_CLIENTES INTO row_cliente;
     WHILE C_CLIENTES%FOUND LOOP
-        proc_mail_message(row_cliente.CLI_EMAIL,:NEW.AVI_MARCA);
+        proc_mail_message(row_cliente.CLI_EMAIL,:NEW.AVI_MARCA,'Hemos adquirido un nuevo avión para nuestra aerolinea,VEN A DISFRUTAR!!');
         FETCH C_CLIENTES INTO row_cliente;
     END LOOP; 
     CLOSE C_CLIENTES;
 END;
+
+
+CREATE OR REPLACE TRIGGER TG_WELCOME_MESSAGE AFTER INSERT ON CLIENTES FOR EACH ROW
+BEGIN
+       proc_mail_message(:NEW.CLI_EMAIL,'Gracias por ayudarnos a crecer','Bienvenido a tu aerolinea GRACIAS POR USAR NUESTROS SERVICIOS!!');
+END;
+
+
+CREATE OR REPLACE TRIGGER TG_SHOULDNOT_ADD_AIRPLANEBAD BEFORE INSERT ON AVIONES FOR EACH ROW
+BEGIN
+    IF :NEW.AVI_ESTADO=1 THEN 
+        RAISE_APPLICATION_ERROR(-20010, 'Según las politicas de la empresa no se permiten añadir aviones en mal estado a la flota');
+    END IF;
+END;
+
+create or replace trigger TG_ONDELETE_RESERVAS BEFORE DELETE ON RESERVAS FOR EACH ROW
+begin
+    if :OLD.STATES_ESTADODERESERVA='ES02' THEN
+       RAISE_APPLICATION_ERROR(-20010, 'No se puede eliminar una reserva en espera');
+    END IF;
+end;
+
 
     
